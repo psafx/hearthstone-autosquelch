@@ -1,11 +1,11 @@
 ﻿using Hearthstone_Deck_Tracker;
 using Hearthstone_Deck_Tracker.API;
 using Hearthstone_Deck_Tracker.Enums;
-using Hearthstone_Deck_Tracker.Exporting;
 using Hearthstone_Deck_Tracker.Plugins;
 using Hearthstone_Deck_Tracker.Utility;
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Threading.Tasks;
 
 namespace Autosquelch
@@ -89,7 +89,6 @@ namespace Autosquelch
         {
             Squelched = false;
             PluginRunning = true;
-            var d = Config.Instance.DeckExportDelay;
 
             GameEvents.OnGameStart.Add(() =>
             {
@@ -133,6 +132,11 @@ namespace Autosquelch
             }
 
             IntPtr hearthstoneWindow = User32.GetHearthstoneWindow();
+            if (hearthstoneWindow == IntPtr.Zero)
+            {
+                return;
+            }
+
             var HsRect = User32.GetHearthstoneRect(false);
             var Ratio = (4.0 / 3.0) / ((double)HsRect.Width / HsRect.Height);
             Point opponentHeroPosition = new Point((int)Helper.GetScaledXPos(0.5, HsRect.Width, Ratio), (int)(0.17 * HsRect.Height));
@@ -155,14 +159,56 @@ namespace Autosquelch
 
                 await MouseHelpers.ClickOnPoint(hearthstoneWindow, opponentHeroPosition, false);
 
-                await Task.Delay(TimeSpan.FromMilliseconds(Config.Instance.DeckExportDelay * 4));
+                await Task.Delay(TimeSpan.FromMilliseconds(Config.Instance.OverlayMouseOverTriggerDelay));
                 var capture = await ScreenCapture.CaptureHearthstoneAsync(squelchBubblePosition, lockWidth, lockHeight, hearthstoneWindow);
-                squelchBubbleVisible = HueAndBrightness.GetAverage(capture).Brightness > minBrightness;
+                squelchBubbleVisible = CalculateAverageLightness(capture) > minBrightness;
                 if (!squelchBubbleVisible)
-                    await Task.Delay(TimeSpan.FromSeconds(0.5));
+                    await Task.Delay(TimeSpan.FromMilliseconds(Config.Instance.OverlayMouseOverTriggerDelay));
             } while (!squelchBubbleVisible);
 
             await MouseHelpers.ClickOnPoint(hearthstoneWindow, squelchBubblePosition, true);
+        }
+
+        /// <summary>
+        /// Calculate average brightness of the bitmap.
+        /// </summary>
+        /// <param name="bitmap">Bitmap to be processed.</param>
+        /// <returns>Brightness from the range 0-1.</returns>
+        internal static double CalculateAverageLightness(Bitmap bitmap)
+        {
+            double lum = 0;
+            var width = bitmap.Width;
+            var height = bitmap.Height;
+            using (var tmpBmp = new Bitmap(bitmap))
+            {
+                var bppModifier = bitmap.PixelFormat == PixelFormat.Format24bppRgb ? 3 : 4;
+
+                var srcData = tmpBmp.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, bitmap.PixelFormat);
+                var stride = srcData.Stride;
+                var scan0 = srcData.Scan0;
+
+                //Luminance (standard, objective): (0.2126*R) + (0.7152*G) + (0.0722*B)
+                //Luminance (perceived option 1): (0.299*R + 0.587*G + 0.114*B)
+                //Luminance (perceived option 2, slower to calculate): sqrt( 0.241*R^2 + 0.691*G^2 + 0.068*B^2 )
+
+                unsafe
+                {
+                    byte* p = (byte*)(void*)scan0;
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            int idx = (y * stride) + x * bppModifier;
+                            lum += (0.299 * p[idx + 2] + 0.587 * p[idx + 1] + 0.114 * p[idx]);
+                        }
+                    }
+                }
+
+                tmpBmp.UnlockBits(srcData);
+            }
+            var avgLum = lum / (width * height);
+            return avgLum / 255.0;
         }
     }
 }
