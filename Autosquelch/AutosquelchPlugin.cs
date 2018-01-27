@@ -137,7 +137,7 @@ namespace Autosquelch
                 return;
             }
 
-            var HsRect = User32.GetHearthstoneRect(false);
+            var HsRect = User32.GetHearthstoneRect(true);
             var Ratio = (4.0 / 3.0) / ((double)HsRect.Width / HsRect.Height);
             Point opponentHeroPosition = new Point((int)Helper.GetScaledXPos(0.5, HsRect.Width, Ratio), (int)(0.17 * HsRect.Height));
             Point squelchBubblePosition = new Point((int)Helper.GetScaledXPos(0.4, HsRect.Width, Ratio), (int)(0.1 * HsRect.Height));
