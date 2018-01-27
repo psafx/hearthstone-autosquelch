@@ -149,6 +149,9 @@ namespace Autosquelch
             var lockWidth = (int)Math.Round(HsRect.Height * xScale);
             var lockHeight = (int)Math.Round(HsRect.Height * yScale);
             bool squelchBubbleVisible = false;
+            // Limit amount of tries (in case a game mode does not support squelching your opponent or else)
+            const int maxTries = 4;
+            int timesTried = 0;
             do
             {
                 if (!PluginRunning || !GameInProgress)
@@ -163,8 +166,11 @@ namespace Autosquelch
                 var capture = await ScreenCapture.CaptureHearthstoneAsync(squelchBubblePosition, lockWidth, lockHeight, hearthstoneWindow);
                 squelchBubbleVisible = CalculateAverageLightness(capture) > minBrightness;
                 if (!squelchBubbleVisible)
+                {
                     await Task.Delay(TimeSpan.FromMilliseconds(Config.Instance.OverlayMouseOverTriggerDelay));
-            } while (!squelchBubbleVisible);
+                    ++timesTried;
+                }
+            } while (!squelchBubbleVisible && timesTried <= maxTries);
 
             await MouseHelpers.ClickOnPoint(hearthstoneWindow, squelchBubblePosition, true);
         }
