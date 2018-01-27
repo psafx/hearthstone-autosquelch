@@ -163,6 +163,7 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
             // Limit amount of tries (in case a game mode does not support squelching your opponent or else)
             const int maxTries = 4;
             int timesTried = 0;
+            var previousMousePosition = User32.GetMousePos();
             do
             {
                 if (!ShouldTrySquelch)
@@ -184,6 +185,7 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
             } while (!squelchBubbleVisible && timesTried <= maxTries);
 
             await MouseHelpers.ClickOnPoint(hearthstoneWindow, squelchBubblePosition, true);
+            MouseHelpers.SetCursorPosition(previousMousePosition);
         }
 
         private readonly HotKey DefaultHotKey = new HotKey(ModifierKeys.Control | ModifierKeys.Alt, System.Windows.Forms.Keys.D);

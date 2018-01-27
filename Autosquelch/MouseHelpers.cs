@@ -1,5 +1,4 @@
-﻿using Hearthstone_Deck_Tracker;
-using System;
+﻿using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -16,7 +15,7 @@ namespace Autosquelch
         {
             ClientToScreen(wndHandle, ref clientPoint);
 
-            Cursor.Position = new Point(clientPoint.X, clientPoint.Y);
+            SetCursorPosition(clientPoint);
             Hearthstone_Deck_Tracker.Utility.Logging.Log.Debug("Clicking " + Cursor.Position);
 
             if (SystemInformation.MouseButtonsSwapped)
@@ -38,7 +37,12 @@ namespace Autosquelch
             else
                 mouse_event((uint)RightUp, 0, 0, 0, UIntPtr.Zero);
 
-            await Task.Delay(DefaultClickDelayMs);
+            await Task.Delay(DefaultClickDelayMs / 2);
+        }
+
+        public static void SetCursorPosition(Point point)
+        {
+            Cursor.Position = new Point(point.X, point.Y);
         }
     }
 }
