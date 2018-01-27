@@ -60,7 +60,7 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
         {
             get
             {
-                return new Version(0, 1);
+                return new Version(0, 2);
             }
         }
 
