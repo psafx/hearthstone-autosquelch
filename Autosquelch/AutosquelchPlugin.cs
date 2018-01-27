@@ -3,10 +3,13 @@ using Hearthstone_Deck_Tracker.API;
 using Hearthstone_Deck_Tracker.Enums;
 using Hearthstone_Deck_Tracker.Plugins;
 using Hearthstone_Deck_Tracker.Utility;
+using Hearthstone_Deck_Tracker.Utility.HotKeys;
+using Hearthstone_Deck_Tracker.Utility.Logging;
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 
 namespace Autosquelch
 {
@@ -32,7 +35,8 @@ namespace Autosquelch
         {
             get
             {
-                return "When enabled, plugin automatically squelches the opponent at the start of the game.";
+                return @"When enabled, plugin automatically squelches the opponent at the start of the game.
+To temporarily turn off the autosquelch, press Ctrl+Alt+D";
             }
         }
 
@@ -68,6 +72,10 @@ namespace Autosquelch
 
         private bool PluginRunning { get; set; }
 
+        private bool AutosquelchDisabled { get; set; }
+
+        private bool ShouldTrySquelch => PluginRunning && GameInProgress && !AutosquelchDisabled;
+
         private bool GameInProgress
         {
             get
@@ -89,6 +97,8 @@ namespace Autosquelch
         {
             Squelched = false;
             PluginRunning = true;
+
+            HotKeyManager.RegisterHotkey(DefaultHotKey, ToggleAutosquelch, "Toggle Autosquelch");
 
             GameEvents.OnGameStart.Add(() =>
             {
@@ -117,6 +127,7 @@ namespace Autosquelch
         public void OnUnload()
         {
             PluginRunning = false;
+            HotKeyManager.RemovePredefinedHotkey(DefaultHotKey);
         }
 
         public void OnUpdate()
@@ -154,7 +165,7 @@ namespace Autosquelch
             int timesTried = 0;
             do
             {
-                if (!PluginRunning || !GameInProgress)
+                if (!ShouldTrySquelch)
                 {
                     Squelched = false;
                     return;
@@ -173,6 +184,39 @@ namespace Autosquelch
             } while (!squelchBubbleVisible && timesTried <= maxTries);
 
             await MouseHelpers.ClickOnPoint(hearthstoneWindow, squelchBubblePosition, true);
+        }
+
+        private readonly HotKey DefaultHotKey = new HotKey(ModifierKeys.Control | ModifierKeys.Alt, System.Windows.Forms.Keys.D);
+
+        private void ToggleAutosquelch()
+        {
+            AutosquelchDisabled = !AutosquelchDisabled;
+
+            // Notify that plugin is active/inactive
+            var textBlock = new HearthstoneTextBlock();
+            textBlock.FontSize = 14;
+            textBlock.Text = "Autosquelch is now " + (AutosquelchDisabled ? "disabled" : "enabled");
+            textBlock.Loaded += SetHorizontalPosition;
+            Canvas.SetBottom(textBlock, 50);
+            var overlay = Hearthstone_Deck_Tracker.API.Core.OverlayCanvas;
+            textBlock.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+            overlay.Children.Add(textBlock);
+            Hearthstone_Deck_Tracker.API.Core.OverlayWindow.Update(false);
+
+            const double notificationDurationSeconds = 1.5;
+            Task.Delay(TimeSpan.FromSeconds(notificationDurationSeconds)).ContinueWith(_ =>
+            {
+                Hearthstone_Deck_Tracker.API.Core.OverlayCanvas.Children.Remove(textBlock);
+                Hearthstone_Deck_Tracker.API.Core.OverlayWindow.Update(false);
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
+        private static void SetHorizontalPosition(object s, System.Windows.RoutedEventArgs e)
+        {
+            var sender = (s as HearthstoneTextBlock);
+            var textBlockWidth = sender.ActualWidth;
+            var canvasWidth = Hearthstone_Deck_Tracker.API.Core.OverlayCanvas.ActualWidth;
+            Canvas.SetLeft(sender, (canvasWidth - textBlockWidth) / 2.0);
         }
 
         /// <summary>
