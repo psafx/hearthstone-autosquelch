@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Hearthstone_Deck_Tracker.Utility.Logging;
 using static Hearthstone_Deck_Tracker.User32;
 using static Hearthstone_Deck_Tracker.User32.MouseEventFlags;
 
@@ -9,14 +10,14 @@ namespace Autosquelch
 {
     public class MouseHelpers
     {
-        const int DefaultClickDelayMs = 70;
+        private const int DefaultClickDelayMs = 70;
 
         public static async Task ClickOnPoint(IntPtr wndHandle, Point clientPoint, bool leftMouseButton)
         {
             ClientToScreen(wndHandle, ref clientPoint);
 
             SetCursorPosition(clientPoint);
-            Hearthstone_Deck_Tracker.Utility.Logging.Log.Debug("Clicking " + Cursor.Position);
+            Log.Debug("Clicking " + Cursor.Position);
 
             if (SystemInformation.MouseButtonsSwapped)
             {
@@ -25,17 +26,17 @@ namespace Autosquelch
 
             //mouse down
             if (leftMouseButton)
-                mouse_event((uint)LeftDown, 0, 0, 0, UIntPtr.Zero);
+                mouse_event((uint) LeftDown, 0, 0, 0, UIntPtr.Zero);
             else
-                mouse_event((uint)RightDown, 0, 0, 0, UIntPtr.Zero);
+                mouse_event((uint) RightDown, 0, 0, 0, UIntPtr.Zero);
 
             await Task.Delay(DefaultClickDelayMs);
 
             //mouse up
             if (leftMouseButton)
-                mouse_event((uint)LeftUp, 0, 0, 0, UIntPtr.Zero);
+                mouse_event((uint) LeftUp, 0, 0, 0, UIntPtr.Zero);
             else
-                mouse_event((uint)RightUp, 0, 0, 0, UIntPtr.Zero);
+                mouse_event((uint) RightUp, 0, 0, 0, UIntPtr.Zero);
 
             await Task.Delay(DefaultClickDelayMs / 2);
         }

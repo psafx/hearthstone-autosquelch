@@ -1,72 +1,26 @@
-﻿using Hearthstone_Deck_Tracker;
+﻿using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Forms;
+using Hearthstone_Deck_Tracker;
 using Hearthstone_Deck_Tracker.API;
 using Hearthstone_Deck_Tracker.Enums;
 using Hearthstone_Deck_Tracker.Plugins;
 using Hearthstone_Deck_Tracker.Utility;
 using Hearthstone_Deck_Tracker.Utility.HotKeys;
-using Hearthstone_Deck_Tracker.Utility.Logging;
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Threading.Tasks;
-using System.Windows.Controls;
+using Core = Hearthstone_Deck_Tracker.API.Core;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Point = System.Drawing.Point;
 
 namespace Autosquelch
 {
     public class AutosquelchPlugin : IPlugin
     {
-        public string Author
-        {
-            get
-            {
-                return "Vasilev Konstantin";
-            }
-        }
-
-        public string ButtonText
-        {
-            get
-            {
-                return "";
-            }
-        }
-
-        public string Description
-        {
-            get
-            {
-                return @"When enabled, plugin automatically squelches the opponent at the start of the game.
-To temporarily turn off the autosquelch, press Ctrl+Alt+D";
-            }
-        }
-
-        public System.Windows.Controls.MenuItem MenuItem
-        {
-            get
-            {
-                return null;
-            }
-        }
-
-        public string Name
-        {
-            get
-            {
-                return "Autosquelch";
-            }
-        }
-
-        public Version Version
-        {
-            get
-            {
-                return new Version(0, 2);
-            }
-        }
-
-        public void OnButtonPress()
-        {
-        }
+        private readonly HotKey DefaultHotKey = new HotKey(ModifierKeys.Control | ModifierKeys.Alt, Keys.D);
 
         private bool Squelched { get; set; }
 
@@ -76,21 +30,29 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
 
         private bool ShouldTrySquelch => PluginRunning && GameInProgress && !AutosquelchDisabled;
 
-        private bool GameInProgress
-        {
-            get
-            {
-                return Hearthstone_Deck_Tracker.API.Core.Game != null && Hearthstone_Deck_Tracker.API.Core.Game.IsRunning;
-            }
-        }
+        private bool GameInProgress => Core.Game != null && Core.Game.IsRunning;
 
-        private bool OpponentIsSquelchable
+        private bool OpponentIsSquelchable =>
+            Core.Game.CurrentGameMode != GameMode.Practice
+            && Core.Game.CurrentGameMode != GameMode.None
+            && Core.Game.CurrentGameMode != GameMode.Battlegrounds;
+
+        public string Author => "Vasilev Konstantin";
+
+        public string ButtonText => "";
+
+        public string Description =>
+            @"When enabled, plugin automatically squelches the opponent at the start of the game.
+To temporarily turn off the autosquelch, press Ctrl+Alt+D";
+
+        public MenuItem MenuItem => null;
+
+        public string Name => "Autosquelch";
+
+        public Version Version => new Version(0, 3);
+
+        public void OnButtonPress()
         {
-            get
-            {
-                return Hearthstone_Deck_Tracker.API.Core.Game.CurrentGameMode != GameMode.Practice
-                        && Hearthstone_Deck_Tracker.API.Core.Game.CurrentGameMode != GameMode.None;
-            }
         }
 
         public void OnLoad()
@@ -100,10 +62,7 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
 
             HotKeyManager.RegisterHotkey(DefaultHotKey, ToggleAutosquelch, "Toggle Autosquelch");
 
-            GameEvents.OnGameStart.Add(() =>
-            {
-                Squelched = false;
-            });
+            GameEvents.OnGameStart.Add(() => { Squelched = false; });
             GameEvents.OnTurnStart.Add(activePlayer =>
             {
                 if (!Squelched)
@@ -119,7 +78,7 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
                     }
 
                     Squelched = true;
-                    Task t = Squelch();
+                    var t = Squelch();
                 }
             });
         }
@@ -142,27 +101,27 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
                 return;
             }
 
-            IntPtr hearthstoneWindow = User32.GetHearthstoneWindow();
+            var hearthstoneWindow = User32.GetHearthstoneWindow();
             if (hearthstoneWindow == IntPtr.Zero)
             {
                 return;
             }
 
             var HsRect = User32.GetHearthstoneRect(true);
-            var Ratio = (4.0 / 3.0) / ((double)HsRect.Width / HsRect.Height);
-            Point opponentHeroPosition = new Point((int)Helper.GetScaledXPos(0.5, HsRect.Width, Ratio), (int)(0.17 * HsRect.Height));
-            Point squelchBubblePosition = new Point((int)Helper.GetScaledXPos(0.4, HsRect.Width, Ratio), (int)(0.1 * HsRect.Height));
+            var Ratio = 4.0 / 3.0 / ((double) HsRect.Width / HsRect.Height);
+            var opponentHeroPosition = new Point((int) Helper.GetScaledXPos(0.5, HsRect.Width, Ratio), (int) (0.17 * HsRect.Height));
+            var squelchBubblePosition = new Point((int) Helper.GetScaledXPos(0.4, HsRect.Width, Ratio), (int) (0.1 * HsRect.Height));
             // setting this as a "width" value relative to height, maybe not best solution?
             const double xScale = 0.051; // 55px @ height = 1080
             const double yScale = 0.025; // 27px @ height = 1080
             const double minBrightness = 0.67;
 
-            var lockWidth = (int)Math.Round(HsRect.Height * xScale);
-            var lockHeight = (int)Math.Round(HsRect.Height * yScale);
-            bool squelchBubbleVisible = false;
+            var lockWidth = (int) Math.Round(HsRect.Height * xScale);
+            var lockHeight = (int) Math.Round(HsRect.Height * yScale);
+            var squelchBubbleVisible = false;
             // Limit amount of tries (in case a game mode does not support squelching your opponent or else)
             const int maxTries = 4;
-            int timesTried = 0;
+            var timesTried = 0;
             var previousMousePosition = User32.GetMousePos();
             do
             {
@@ -188,8 +147,6 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
             MouseHelpers.SetCursorPosition(previousMousePosition);
         }
 
-        private readonly HotKey DefaultHotKey = new HotKey(ModifierKeys.Control | ModifierKeys.Alt, System.Windows.Forms.Keys.D);
-
         private void ToggleAutosquelch()
         {
             AutosquelchDisabled = !AutosquelchDisabled;
@@ -200,29 +157,29 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
             textBlock.Text = "Autosquelch is now " + (AutosquelchDisabled ? "disabled" : "enabled");
             textBlock.Loaded += SetHorizontalPosition;
             Canvas.SetBottom(textBlock, 50);
-            var overlay = Hearthstone_Deck_Tracker.API.Core.OverlayCanvas;
-            textBlock.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+            var overlay = Core.OverlayCanvas;
+            textBlock.HorizontalAlignment = HorizontalAlignment.Center;
             overlay.Children.Add(textBlock);
-            Hearthstone_Deck_Tracker.API.Core.OverlayWindow.Update(false);
+            Core.OverlayWindow.Update(false);
 
             const double notificationDurationSeconds = 1.5;
             Task.Delay(TimeSpan.FromSeconds(notificationDurationSeconds)).ContinueWith(_ =>
             {
-                Hearthstone_Deck_Tracker.API.Core.OverlayCanvas.Children.Remove(textBlock);
-                Hearthstone_Deck_Tracker.API.Core.OverlayWindow.Update(false);
+                Core.OverlayCanvas.Children.Remove(textBlock);
+                Core.OverlayWindow.Update(false);
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        private static void SetHorizontalPosition(object s, System.Windows.RoutedEventArgs e)
+        private static void SetHorizontalPosition(object s, RoutedEventArgs e)
         {
-            var sender = (s as HearthstoneTextBlock);
+            var sender = s as HearthstoneTextBlock;
             var textBlockWidth = sender.ActualWidth;
-            var canvasWidth = Hearthstone_Deck_Tracker.API.Core.OverlayCanvas.ActualWidth;
+            var canvasWidth = Core.OverlayCanvas.ActualWidth;
             Canvas.SetLeft(sender, (canvasWidth - textBlockWidth) / 2.0);
         }
 
         /// <summary>
-        /// Calculate average brightness of the bitmap.
+        ///     Calculate average brightness of the bitmap.
         /// </summary>
         /// <param name="bitmap">Bitmap to be processed.</param>
         /// <returns>Brightness from the range 0-1.</returns>
@@ -245,20 +202,21 @@ To temporarily turn off the autosquelch, press Ctrl+Alt+D";
 
                 unsafe
                 {
-                    byte* p = (byte*)(void*)scan0;
+                    var p = (byte*) (void*) scan0;
 
-                    for (int y = 0; y < height; y++)
+                    for (var y = 0; y < height; y++)
                     {
-                        for (int x = 0; x < width; x++)
+                        for (var x = 0; x < width; x++)
                         {
-                            int idx = (y * stride) + x * bppModifier;
-                            lum += (0.299 * p[idx + 2] + 0.587 * p[idx + 1] + 0.114 * p[idx]);
+                            var idx = y * stride + x * bppModifier;
+                            lum += 0.299 * p[idx + 2] + 0.587 * p[idx + 1] + 0.114 * p[idx];
                         }
                     }
                 }
 
                 tmpBmp.UnlockBits(srcData);
             }
+
             var avgLum = lum / (width * height);
             return avgLum / 255.0;
         }
